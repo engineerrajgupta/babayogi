@@ -3,7 +3,6 @@ import json
 import numpy as np
 import google.generativeai as genai
 from pinecone import Pinecone
-from sentence_transformers import SentenceTransformer
 
 # --- Environment Variable and API Configuration ---
 try:
@@ -18,8 +17,8 @@ except (ImportError, ValueError) as e:
 class DietGenerationLogic:
     """
     Handles all the core logic for generating an Ayurvedic diet plan.
-    This version uses Pinecone for semantic food retrieval and a Gemini 
-    generative model to create the final plan.
+    This version uses Gemini for both embeddings and generation, with Pinecone
+    for vector storage and retrieval.
     """
     
     def __init__(self):
@@ -28,10 +27,8 @@ class DietGenerationLogic:
         """
         print("Initializing DietGenerationLogic...")
         
-        print("Loading 384-dimensional embedding model (all-MiniLM-L6-v2)...")
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-        
-        print("Configuring generative model (gemini-2.5-pro)...")
+        # --- Models are now all from Google Gemini ---
+        self.embedding_model_name = 'models/text-embedding-004'
         self.generative_model = genai.GenerativeModel('gemini-2.5-pro')
 
         print("Connecting to Pinecone index 'ayurvedic-foods-v2'...")
@@ -43,16 +40,14 @@ class DietGenerationLogic:
         """
         Retrieves suitable foods from Pinecone using a hybrid approach:
         1. Metadata filtering for hard constraints (allergies).
-        2. Semantic search using embeddings for contextual relevance.
+        2. Semantic search using Gemini embeddings for contextual relevance.
         """
         metadata_filter = {}
         
         allergies = user_payload['dietPreferences']['allergies']
         if allergies:
-            # Assumes your Pinecone metadata has a field named "Allergen Info"
             metadata_filter["Allergen Info"] = {"$nin": allergies}
         
-        # --- UPDATED: Incorporate cuisine for Satmaya into the semantic query ---
         primary_vikriti = max(user_payload['profile']['vikriti'], key=user_payload['profile']['vikriti'].get)
         cuisines = user_payload['dietPreferences'].get('cuisine', [])
         
@@ -64,11 +59,20 @@ class DietGenerationLogic:
             cuisine_str = ', '.join(cuisines)
             search_query += f" The person is accustomed to and prefers {cuisine_str} cuisine."
         
-        query_embedding = self.embedding_model.encode(search_query).tolist()
+        try:
+            query_embedding_response = genai.embed_content(
+                model=self.embedding_model_name,
+                content=search_query,
+                task_type="RETRIEVAL_QUERY",
+                output_dimensionality=384  # This ensures compatibility with Pinecone
+            )
+            query_embedding = query_embedding_response['embedding']
+        except Exception as e:
+            print(f"Error generating Gemini embedding: {e}")
+            return []
 
         try:
             print(f"Querying Pinecone with filter: {metadata_filter}")
-            print(f"Semantic Search Query: {search_query}")
             query_response = self.index.query(
                 vector=query_embedding,
                 top_k=top_k,
@@ -110,7 +114,6 @@ class DietGenerationLogic:
         primary_dosha = max(vikriti_scores, key=vikriti_scores.get).capitalize()
         secondary_doshas = [d.capitalize() for d, s in sorted(vikriti_scores.items(), key=lambda item: item[1], reverse=True) if d != primary_dosha]
 
-        # Assumes Pinecone metadata has "Dish Name" and "Category" fields
         food_inspiration_list = [
             {'name': f.get('Dish Name'), 'category': f.get('Category')} for f in suitable_foods
         ]
@@ -133,20 +136,16 @@ class DietGenerationLogic:
         **INSTRUCTIONS:**
         1.  Analyze the user profile to determine the dominant dosha and overall health picture.
         2.  Populate every field in the provided JSON structure with logical, expert Ayurvedic advice.
-        3.  The "food_guidelines" must contain specific lists for "can_eat" and "avoid". Use the inspiration list for the "can_eat" sections.
-        4.  All "notes" fields should contain concise, actionable advice.
-        5.  The "dosha_alerts" should provide specific warnings related to the user's imbalances.
+        3.  The "food_guidelines" must contain specific lists for "can_eat" and "avoid".
+            - Each list must include at least 10 and at most 20 items.
+            - Use the inspiration list for "can_eat" suggestions.
+            - Ensure no duplicates across categories.
+            - Notes must be highly relevant, actionable, and tailored to the user’s dosha and goals.
+        4.  The "dosha_alerts" should provide specific warnings related to the user's imbalances.
 
         **JSON OUTPUT STRUCTURE (Strict):**
         {{
-          "# Inside the prompt string in get_diet_plan
-          "user_profile": {{
-            "dosha": "{primary_dosha}-dominant",
-            "secondary_doshas": {json.dumps(secondary_doshas)},
-            "allergies": {json.dumps(user_payload['dietPreferences']['allergies'])},
-            "preferences": ["{user_payload['dietPreferences']['dietType']}"],
-            "cuisine": {json.dumps(user_payload['dietPreferences']['cuisine'])}
-          }},
+          "user_profile": {{ "dosha": "{primary_dosha}-dominant", "secondary_doshas": {json.dumps(secondary_doshas)}, "allergies": {json.dumps(user_payload['dietPreferences']['allergies'])}, "preferences": ["{user_payload['dietPreferences']['dietType']}"], "cuisine": {json.dumps(user_payload['dietPreferences']['cuisine'])} }},
           "food_guidelines": {{ "grains": {{ "can_eat": [], "avoid": [], "notes": "" }}, "vegetables": {{ "can_eat": [], "avoid": [], "notes": "" }}, "fruits": {{ "can_eat": [], "avoid": [], "notes": "" }}, "proteins": {{ "can_eat": [], "avoid": [], "notes": "" }}, "dairy": {{ "can_eat": [], "avoid": [], "notes": "" }}, "spices": {{ "can_use": [], "avoid": [], "notes": "" }}, "beverages": {{ "can_drink": [], "avoid": [] }} }},
           "nutrient_guidelines": {{ "carbohydrates": {{ "suggested_range_percent": "40-50%", "notes": "" }}, "proteins": {{ "suggested_range_percent": "20-25%", "notes": "" }}, "fats": {{ "suggested_range_percent": "20-25%", "notes": "" }}, "hydration": {{ "water_intake_liters": "2-3", "notes": "" }} }},
           "meal_timing": {{ "breakfast": "7-9 AM", "lunch": "12-2 PM (main meal)", "snack": "3-4 PM", "dinner": "6-8 PM (light meal)", "notes": "" }},
