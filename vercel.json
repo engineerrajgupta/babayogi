@@ -10,5 +10,11 @@
       "src": "/(.*)",
       "dest": "main.py"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/public/favicon.ico"
+    }
   ]
 }
