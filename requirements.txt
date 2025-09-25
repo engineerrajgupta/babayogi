@@ -1,0 +1,9 @@
+fastapi
+pydantic
+uvicorn[standard]
+google-generativeai
+numpy
+python-dotenv
+pinecone-client
+sentence-transformers
+torch
