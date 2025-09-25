@@ -5,5 +5,3 @@ google-generativeai
 numpy
 python-dotenv
 pinecone-client
-sentence-transformers
-torch
