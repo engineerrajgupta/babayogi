@@ -64,6 +64,12 @@ app = FastAPI(
 # Create a single, reusable instance of our logic class.
 # This will initialize models and connect to Pinecone on startup.
 diet_logic = DietGenerationLogic()
+@app.get("/favicon.ico", include_in_schema=False)
+async def get_favicon():
+    """
+    Serves the favicon.ico file to prevent 500 errors.
+    """
+    return FileResponse("favicon.ico")
 
 @app.post("/generate-diet-plan", tags=["Diet Generation"])
 async def generate_diet_plan(request: DietRequest):
