@@ -64,6 +64,9 @@ app = FastAPI(
 diet_logic = DietGenerationLogic()
 
 @app.post("/generate-diet-plan", tags=["Diet Generation"])
+@app.get("/")
+async def read_root():
+    return {"message": "API is running. Use the /generate-diet-plan endpoint with a POST request."}
 async def generate_diet_plan(request: DietRequest):
     """
     Accepts a user's detailed profile and returns a personalized wellness guide.
