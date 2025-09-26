@@ -36,7 +36,6 @@ class Health(BaseModel):
 class DietPreferences(BaseModel):
     dietType: str = Field(..., example="vegetarian", description="User's dietary choice (e.g., 'vegetarian', 'vegan')")
     allergies: List[str] = Field(default=[], example=["Dairy", "Gluten"], description="List of known allergens")
-    # --- UPDATED: Added cuisine for Satmaya ---
     cuisine: List[str] = Field(..., example=["North Indian", "South Indian"], description="List of cuisines the user is accustomed to (Satmaya)")
 
 class Environment(BaseModel):
@@ -64,12 +63,6 @@ app = FastAPI(
 # Create a single, reusable instance of our logic class.
 # This will initialize models and connect to Pinecone on startup.
 diet_logic = DietGenerationLogic()
-@app.get("/favicon.ico", include_in_schema=False)
-async def get_favicon():
-    """
-    Serves the favicon.ico file to prevent 500 errors.
-    """
-    return FileResponse("favicon.ico")
 
 @app.post("/generate-diet-plan", tags=["Diet Generation"])
 async def generate_diet_plan(request: DietRequest):
@@ -95,9 +88,5 @@ async def generate_diet_plan(request: DietRequest):
             status_code=500,
             detail="An internal server error occurred."
         )
-# To run this server:
-# 1. Create a .env file and add your GEMINI_API_KEY.
-# 2. Open your terminal in the same directory.
-# 3. Run: pip install -r requirements.txt
-# 4. Run: uvicorn main:app --reload
-# 5. Access the interactive API docs at http://127.0.0.1:8000/docs
+
+# No changes are needed to logic.py, as it handles the core business logic.
