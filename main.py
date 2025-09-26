@@ -60,7 +60,6 @@ app = FastAPI(
     version="3.0.0"
 )
 
-# Create a single, reusable instance of our logic class.
 # This will initialize models and connect to Pinecone on startup.
 diet_logic = DietGenerationLogic()
 
@@ -89,4 +88,3 @@ async def generate_diet_plan(request: DietRequest):
             detail="An internal server error occurred."
         )
 
-# No changes are needed to logic.py, as it handles the core business logic.
