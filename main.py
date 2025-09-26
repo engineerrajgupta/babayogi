@@ -4,9 +4,11 @@ from pydantic import BaseModel, Field
 from typing import List
 from dotenv import load_dotenv
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 # Import the business logic
 from logic import DietGenerationLogic
+
 
 # Load environment variables from a .env file
 load_dotenv()
@@ -54,7 +56,14 @@ app = FastAPI(
     title="Aayur.AI - Personalized Wellness Guide",
     version="3.0.0"
 )
-
+origins = ["*"] # Be specific with your front-end domain in a real app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 diet_logic = DietGenerationLogic()
 
 # --- Root and Favicon Endpoints ---
