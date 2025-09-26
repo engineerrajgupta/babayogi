@@ -4,7 +4,7 @@ import numpy as np
 import google.generativeai as genai
 from pinecone import Pinecone
 
-# --- Environment Variable and API Configuration ---
+# --- Environment Variable and API Configuration --
 try:
     from dotenv import load_dotenv
     load_dotenv()
