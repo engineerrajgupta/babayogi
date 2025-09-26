@@ -4,4 +4,4 @@ uvicorn[standard]
 google-generativeai
 numpy
 python-dotenv
-pinecone-client
+pinecone
