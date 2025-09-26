@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List
 from dotenv import load_dotenv
+from fastapi.responses import FileResponse
 
 # Import the business logic
 from logic import DietGenerationLogic
@@ -11,41 +12,37 @@ from logic import DietGenerationLogic
 load_dotenv()
 
 # --- Server Startup Check ---
-# Ensure the necessary API keys are available before starting.
 if not os.getenv("GEMINI_API_KEY"):
     raise RuntimeError("GEMINI_API_KEY not found in environment variables or .env file.")
 if not os.getenv("PINECONE_API_KEY"):
     raise RuntimeError("PINECONE_API_KEY not found in environment variables or .env file.")
 
-
 # --- Pydantic Models for Request Validation ---
-
 class DoshaScores(BaseModel):
-    vata: int = Field(..., example=7, description="Vata dosha score, typically 1-10")
-    pitta: int = Field(..., example=3, description="Pitta dosha score, typically 1-10")
-    kapha: int = Field(..., example=2, description="Kapha dosha score, typically 1-10")
+    vata: int = Field(..., example=7, description="Vata dosha score")
+    pitta: int = Field(..., example=3, description="Pitta dosha score")
+    kapha: int = Field(..., example=2, description="Kapha dosha score")
 
 class Profile(BaseModel):
-    prakriti: DoshaScores = Field(..., description="The user's core, unchanging constitution")
-    vikriti: DoshaScores = Field(..., description="The user's current state of imbalance")
+    prakriti: DoshaScores = Field(...)
+    vikriti: DoshaScores = Field(...)
 
 class Health(BaseModel):
-    agni: str = Field(..., example="weak", description="Digestive fire strength (e.g., 'strong', 'weak', 'variable')")
-    ama: str = Field(..., example="moderate", description="Level of toxins in the body (e.g., 'low', 'moderate')")
+    agni: str = Field(..., example="weak")
+    ama: str = Field(..., example="moderate")
 
 class DietPreferences(BaseModel):
-    dietType: str = Field(..., example="vegetarian", description="User's dietary choice (e.g., 'vegetarian', 'vegan')")
-    allergies: List[str] = Field(default=[], example=["Dairy", "Gluten"], description="List of known allergens")
-    cuisine: List[str] = Field(..., example=["North Indian", "South Indian"], description="List of cuisines the user is accustomed to (Satmaya)")
+    dietType: str = Field(..., example="vegetarian")
+    allergies: List[str] = Field(default=[], example=["Dairy"])
+    cuisine: List[str] = Field(..., example=["North Indian"])
 
 class Environment(BaseModel):
-    season: str = Field(..., example="winter", description="Current season (e.g., 'winter', 'summer', 'autumn')")
+    season: str = Field(..., example="winter")
 
 class Goals(BaseModel):
-    primaryGoal: str = Field(..., example="Improve digestion and reduce bloating", description="The user's main health objective")
+    primaryGoal: str = Field(..., example="Improve digestion and reduce bloating")
 
 class DietRequest(BaseModel):
-    """The main request body model that nests all other models."""
     profile: Profile
     health: Health
     dietPreferences: DietPreferences
@@ -53,24 +50,25 @@ class DietRequest(BaseModel):
     goals: Goals
 
 # --- FastAPI Application Setup ---
-
 app = FastAPI(
     title="Aayur.AI - Personalized Wellness Guide",
-    description="An AI-powered API that generates a personalized Ayurvedic diet plan using a RAG pipeline with Pinecone and Gemini.",
     version="3.0.0"
 )
 
-# This will initialize models and connect to Pinecone on startup.
 diet_logic = DietGenerationLogic()
 
-@app.post("/generate-diet-plan", tags=["Diet Generation"])
+# --- Root and Favicon Endpoints ---
 @app.get("/")
 async def read_root():
     return {"message": "API is running. Use the /generate-diet-plan endpoint with a POST request."}
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def get_favicon():
+    return FileResponse("favicon.ico")
+
+# --- Main API Endpoint ---
+@app.post("/generate-diet-plan", tags=["Diet Generation"])
 async def generate_diet_plan(request: DietRequest):
-    """
-    Accepts a user's detailed profile and returns a personalized wellness guide.
-    """
     try:
         user_payload = request.model_dump()
         diet_plan = diet_logic.get_diet_plan(user_payload)
@@ -81,13 +79,10 @@ async def generate_diet_plan(request: DietRequest):
         return diet_plan
         
     except HTTPException as http_exc:
-        # Re-raise HTTPException to ensure FastAPI handles it correctly
         raise http_exc
     except Exception as e:
-        # Generic error handler for any unexpected issues
         print(f"An unexpected error occurred in the main endpoint: {e}")
         raise HTTPException(
             status_code=500,
             detail="An internal server error occurred."
         )
-
